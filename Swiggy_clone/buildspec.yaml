@@ -12,19 +12,30 @@ phases:
     runtime-versions:
       python: 3.11
       java: corretto17
+    commands:
+      - echo "Installing SonarQube Scanner..."
+      - export SONAR_SCANNER_VERSION=4.7.0.2747
+      - export SONAR_SCANNER_HOME=$HOME/.sonar/sonar-scanner-$SONAR_SCANNER_VERSION-linux
+      - curl --create-dirs -sSLo $HOME/.sonar/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux.zip
+      - unzip -o $HOME/.sonar/sonar-scanner.zip -d $HOME/.sonar/
+      - export PATH=$SONAR_SCANNER_HOME/bin:$PATH
+      - sonar-scanner --version
 
   pre_build:
     commands:
       - echo "Installing dependencies..."
-      - echo "Performing Trivy file scan before building the image..."
+      - echo "Starting SonarQube analysis..."
 
   build:
     commands:
       - echo "Running tests..."
-      - echo "Building Docker image..."
+      - echo "Running SonarQube analysis..."
+      - cd Swiggy_clone
+      - sonar-scanner -Dsonar.projectKey=swiggy -Dsonar.sources=. -Dsonar.host.url=http://16.4.52.101:9000 -Dsonar.token=$SONAR_TOKEN
 
   post_build:
     commands:
+      - echo "SonarQube analysis completed."
       - echo "Sending CodeBuild status email..."
       - aws ses send-email --from "nehru.k1411@gmail.com" --to "nehru.k1411@gmail.com" --subject "CodeBuild Status" --text "CodeBuild completed with status $CODEBUILD_BUILD_STATUS" --region "ap-south-1"
 
