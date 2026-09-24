@@ -12,6 +12,7 @@ phases:
     runtime-versions:
       python: 3.11
       java: corretto17
+
     commands:
       - echo "Installing SonarQube Scanner..."
       - export SONAR_SCANNER_VERSION=4.7.0.2747
@@ -25,6 +26,10 @@ phases:
     commands:
       - echo "Installing dependencies..."
       - echo "Starting SonarQube analysis..."
+      - echo "Logging in to Docker Hub..."
+      - echo "$DOCKER_REGISTRY_PASSWORD" | docker login -u "$DOCKER_REGISTRY_USERNAME" --password-stdin
+      - export IMAGE_URI="$DOCKER_REGISTRY_USERNAME/swiggy:latest"
+      - echo "Image URI = $IMAGE_URI"
 
   build:
     commands:
@@ -32,13 +37,22 @@ phases:
       - echo "Running SonarQube analysis..."
       - cd Swiggy_clone
       - sonar-scanner -Dsonar.projectKey=swiggy -Dsonar.sources=. -Dsonar.host.url=http://16.4.52.101:9000 -Dsonar.token=$SONAR_TOKEN
+      - echo "Building Docker image..."
+      - docker build -t "$IMAGE_URI" .
+      - echo "Pushing Docker image..."
+      - docker push "$IMAGE_URI"
 
   post_build:
     commands:
       - echo "SonarQube analysis completed."
+      - echo "Docker image pushed successfully."
+      - echo "Creating imagedefinitions.json..."
+      - printf '[{"name":"swiggy","imageUri":"%s"}]' "$IMAGE_URI" > imagedefinitions.json
+      - echo "Generated imagedefinitions.json:"
+      - cat imagedefinitions.json
       - echo "Sending CodeBuild status email..."
       - aws ses send-email --from "nehru.k1411@gmail.com" --to "nehru.k1411@gmail.com" --subject "CodeBuild Status" --text "CodeBuild completed with status $CODEBUILD_BUILD_STATUS" --region "ap-south-1"
 
 artifacts:
   files:
-    - Swiggy_clone/appspec.yaml
+    - imagedefinitions.json
